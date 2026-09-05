@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sourceror — verifica fonti Wikipedia</title>
+<style>
+:root{
+  --bg:#f7f7f5; --panel:#fff; --ink:#1b1b1a; --muted:#6b6b66; --line:#e2e1dc;
+  --accent:#2a5db0; --accent-soft:#eaf0fb;
+  --critical:#b3261e; --serious:#c2410c; --caution:#976a00; --info:#5a6472; --good:#1a6b3f;
+  --critical-bg:#fdeceb; --serious-bg:#fdf0e7; --caution-bg:#fdf6e3;
+  --info-bg:#f1f3f6; --good-bg:#eaf5ee;
+  --radius:8px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#16171a; --panel:#1e2024; --ink:#e8e8e6; --muted:#9a9a95; --line:#32343a;
+    --accent:#7aa5e8; --accent-soft:#232c3d;
+    --critical:#ff8a80; --serious:#ffab70; --caution:#e8c86a; --info:#a9b3c1; --good:#7cd6a0;
+    --critical-bg:#2e1c1b; --serious-bg:#2d2119; --caution-bg:#2a2618;
+    --info-bg:#22252a; --good-bg:#18271f;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--accent)}
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:14px 20px;
+  position:sticky;top:0;z-index:20}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;max-width:1180px;margin:0 auto}
+.logo{font-weight:700;font-size:17px;letter-spacing:-.2px;margin-right:4px}
+.logo span{color:var(--muted);font-weight:400;font-size:12px}
+input,select,button{font:inherit;color:inherit}
+input[type=text],select{background:var(--bg);border:1px solid var(--line);
+  border-radius:var(--radius);padding:8px 10px}
+input[type=text]{flex:1;min-width:240px}
+input[type=text]:focus,select:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
+button{background:var(--accent);color:#fff;border:0;border-radius:var(--radius);
+  padding:8px 16px;cursor:pointer;font-weight:600}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-weight:500}
+button.ghost:hover{color:var(--ink);border-color:var(--muted)}
+.opts{display:flex;gap:14px;align-items:center;color:var(--muted);font-size:12.5px}
+.opts label{display:flex;gap:5px;align-items:center;cursor:pointer}
+main{max-width:1180px;margin:0 auto;padding:20px}
+.kb{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
+.dot.ok{background:var(--good)} .dot.err{background:var(--critical)}
+
+#progress{display:none;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--radius);padding:16px 18px;margin-bottom:18px}
+.track{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:10px}
+.fill{height:100%;background:var(--accent);width:0;transition:width .3s}
+.pulse{animation:p 1.4s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.45}}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px 14px}
+.card .n{font-size:24px;font-weight:700;line-height:1.15;letter-spacing:-.5px}
+.card .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.card.bad .n{color:var(--critical)} .card.warn .n{color:var(--serious)}
+.card.good .n{color:var(--good)}
+
+nav.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:16px;
+  overflow-x:auto}
+nav.tabs button{background:none;color:var(--muted);border:0;border-bottom:2px solid transparent;
+  border-radius:0;padding:9px 14px;font-weight:500;white-space:nowrap}
+nav.tabs button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+nav.tabs .cnt{background:var(--line);border-radius:9px;padding:1px 6px;font-size:11px;margin-left:6px}
+.pane{display:none} .pane.on{display:block}
+
+.cite{background:var(--panel);border:1px solid var(--line);border-left-width:3px;
+  border-radius:var(--radius);padding:12px 14px;margin-bottom:9px}
+.cite.g-unreliable{border-left-color:var(--critical)}
+.cite.g-weak{border-left-color:var(--serious)}
+.cite.g-ok{border-left-color:var(--info)}
+.cite.g-solid{border-left-color:var(--good)}
+.cite-h{display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+.idx{font:600 12px var(--mono);color:var(--muted);min-width:30px}
+.title{font-weight:600;flex:1;min-width:200px;word-break:break-word}
+.grade{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;
+  padding:2px 7px;border-radius:4px}
+.g-unreliable .grade{background:var(--critical-bg);color:var(--critical)}
+.g-weak .grade{background:var(--serious-bg);color:var(--serious)}
+.g-ok .grade{background:var(--info-bg);color:var(--info)}
+.g-solid .grade{background:var(--good-bg);color:var(--good)}
+.meta{font-size:12px;color:var(--muted);margin:5px 0 0 39px;display:flex;gap:10px;flex-wrap:wrap}
+.meta .k{font-family:var(--mono);font-size:11px;background:var(--info-bg);
+  padding:1px 5px;border-radius:3px}
+.flags{margin:9px 0 0 39px;display:flex;flex-direction:column;gap:7px}
+.flag{font-size:13px;padding:7px 10px;border-radius:6px;border-left:2px solid}
+.flag.critical{background:var(--critical-bg);border-color:var(--critical)}
+.flag.serious{background:var(--serious-bg);border-color:var(--serious)}
+.flag.caution{background:var(--caution-bg);border-color:var(--caution)}
+.flag.info{background:var(--info-bg);border-color:var(--info)}
+.flag.good{background:var(--good-bg);border-color:var(--good)}
+.flag b{display:block;font-size:12.5px}
+.flag.critical b{color:var(--critical)} .flag.serious b{color:var(--serious)}
+.flag.caution b{color:var(--caution)} .flag.info b{color:var(--info)}
+.flag.good b{color:var(--good)}
+.flag p{margin:3px 0 0;color:var(--muted);font-size:12.5px}
+.flag .fix{margin-top:5px;color:var(--ink);font-size:12.5px}
+.flag .fix::before{content:"→ ";color:var(--accent);font-weight:700}
+
+.snip{display:flex;gap:6px;align-items:flex-start;margin-top:7px}
+.snip code{flex:1;font-family:var(--mono);font-size:11.5px;background:var(--bg);
+  border:1px solid var(--line);border-radius:5px;padding:6px 8px;word-break:break-all;
+  white-space:pre-wrap;max-height:88px;overflow:auto}
+.copy{background:var(--line);color:var(--ink);font-size:11px;padding:5px 9px;font-weight:600}
+.copy.done{background:var(--good);color:#fff}
+
+table{width:100%;border-collapse:collapse;background:var(--panel);
+  border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;font-size:13px}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line)}
+th{background:var(--bg);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--muted);cursor:pointer;user-select:none}
+tbody tr:hover{background:var(--accent-soft)}
+td.sc{font-family:var(--mono);font-weight:700}
+.s-unreliable{color:var(--critical)} .s-weak{color:var(--serious)}
+.s-ok{color:var(--info)} .s-solid{color:var(--good)}
+
+.gap{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:12px 14px;margin-bottom:9px}
+.gap .tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;
+  background:var(--caution-bg);color:var(--caution);text-transform:uppercase}
+.gap .tag.para{background:var(--info-bg);color:var(--info)}
+.claim{margin:8px 0;font-style:italic;color:var(--ink);border-left:2px solid var(--line);
+  padding-left:10px}
+.cand{border-top:1px solid var(--line);padding-top:9px;margin-top:9px}
+.cand-row{padding:8px 0;border-bottom:1px dashed var(--line)}
+.cand-row:last-child{border-bottom:0}
+.cand-t{font-weight:600;font-size:13px}
+.cand-m{font-size:12px;color:var(--muted);margin-top:2px}
+.sig{display:inline-block;font-size:10.5px;background:var(--good-bg);color:var(--good);
+  padding:1px 6px;border-radius:3px;margin-right:4px}
+.sig.warn{background:var(--critical-bg);color:var(--critical)}
+.empty{color:var(--muted);text-align:center;padding:36px 20px;background:var(--panel);
+  border:1px dashed var(--line);border-radius:var(--radius)}
+.tool{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;margin-bottom:14px}
+.tool h3{margin:0 0 4px;font-size:14px}
+.tool p.h{margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.tool .row{display:flex;gap:8px;flex-wrap:wrap}
+.out{margin-top:10px}
+.sect-list{font-size:12.5px;color:var(--muted)}
+.sect-list li{margin:2px 0}
+.sect-list b{color:var(--ink)}
+.hint{color:var(--muted);font-size:12.5px;margin:0 0 12px}
+mark{background:var(--caution-bg);color:inherit;padding:0 2px}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo">Sourceror <span>verifica fonti Wikipedia</span></div>
+    <select id="lang">
+      {% for l in langs %}<option value="{{l}}" {% if l==default_lang %}selected{% endif %}>{{l}}.wikipedia</option>{% endfor %}
+    </select>
+    <input type="text" id="title" placeholder="Titolo della voce, o URL di Wikipedia…"
+           list="sugg" autocomplete="off">
+    <datalist id="sugg"></datalist>
+    <button id="go">Analizza</button>
+    <div class="opts">
+      <label><input type="checkbox" id="links" checked> verifica link</label>
+      <label><input type="checkbox" id="disc" checked> cerca fonti</label>
+      <label id="llmtoggle" style="display:none"><input type="checkbox" id="usellm" checked> usa LLM</label>
+    </div>
+    <button class="ghost" id="toolbtn">Strumenti</button>
+    <div class="kb" id="kb"><span class="dot"></span> knowledge base…</div>
+  </div>
+</header>
+
+<main>
+  <div id="progress">
+    <div id="ph" class="pulse">Avvio…</div>
+    <div class="track"><div class="fill" id="fill"></div></div>
+  </div>
+
+  <div id="intro">
+    <p class="hint">Analizza le fonti di una voce di Wikipedia: controlla le citazioni
+      esistenti contro il consenso della comunità (<a href="https://en.wikipedia.org/wiki/Wikipedia:Reliable_sources/Perennial_sources" target="_blank" rel="noopener">WP:RSP</a>,
+      <a href="https://en.wikipedia.org/wiki/User:Headbomb/unreliable" target="_blank" rel="noopener">CITEWATCH</a>),
+      verifica DOI e ritrattazioni su Crossref/OpenAlex, rileva link morti e cerca
+      fonti per le affermazioni senza riferimenti.</p>
+    <div class="tool">
+      <h3>Prova con</h3>
+      <p class="h">Alcune voci con problemi di fonti evidenti.</p>
+      <div class="row">
+        <button class="ghost ex" data-l="it" data-t="Ponte di Rialto">Ponte di Rialto (it)</button>
+        <button class="ghost ex" data-l="en" data-t="Loch Ness Monster">Loch Ness Monster (en)</button>
+        <button class="ghost ex" data-l="it" data-t="Aldo Moro">Aldo Moro (it)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="results" style="display:none">
+    <div id="head"></div>
+    <div class="cards" id="cards"></div>
+    <nav class="tabs" id="tabs"></nav>
+    <div class="pane" id="p-flag"></div>
+    <div class="pane" id="p-all"></div>
+    <div class="pane" id="p-gaps"></div>
+    <div class="pane" id="p-sugg"></div>
+    <div class="pane" id="p-struct"></div>
+  </div>
+
+  <div class="pane" id="p-tools">
+    <div class="tool">
+      <h3>Genera citazione da URL</h3>
+      <p class="h">Usa Citoid, il servizio Zotero di Wikimedia, per estrarre i metadati
+        e produrre un template già compilato nella lingua scelta.</p>
+      <div class="row">
+        <input type="text" id="citeurl" placeholder="https://…" style="flex:1">
+        <button id="citebtn">Genera</button>
+      </div>
+      <div class="out" id="citeout"></div>
+    </div>
+    <div class="tool">
+      <h3>LLM (opzionale) <span id="llmbadge" style="font-size:11px;font-weight:600;
+        padding:2px 7px;border-radius:4px;background:var(--info-bg);color:var(--info)">non configurato</span></h3>
+      <p class="h">Sourceror funziona senza LLM. Se configurato, viene usato solo dove
+        le API non bastano: riformulare un'affermazione in query di ricerca, e valutare
+        se una fonte candidata sostiene davvero quella specifica affermazione.
+        Endpoint compatibile OpenAI (OpenRouter, OpenAI, LiteLLM, vLLM locale…).</p>
+      <div class="row" style="flex-direction:column;align-items:stretch;gap:8px">
+        <label style="font-size:12px;color:var(--muted)">Endpoint
+          <input type="text" id="llmurl" style="width:100%;margin-top:3px"
+                 placeholder="https://openrouter.ai/api/v1"></label>
+        <label style="font-size:12px;color:var(--muted)">API key
+          <input type="text" id="llmkey" style="width:100%;margin-top:3px"
+                 placeholder="sk-or-v1-…  (lascia vuoto per non modificare)"></label>
+        <label style="font-size:12px;color:var(--muted)">Modello
+          <span style="display:flex;gap:6px;margin-top:3px">
+            <input type="text" id="llmmodel" style="flex:1" placeholder="openai/gpt-4o-mini" list="models">
+            <datalist id="models"></datalist>
+            <button class="ghost" id="llmload">carica elenco</button>
+          </span></label>
+        <label style="font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center">
+          <input type="checkbox" id="llmon" checked> attivo</label>
+        <div class="row">
+          <button id="llmsave">Salva</button>
+          <button class="ghost" id="llmtest">Prova connessione</button>
+        </div>
+      </div>
+      <div class="out" id="llmout"></div>
+    </div>
+
+    <div class="tool">
+      <h3>Controlla un dominio</h3>
+      <p class="h">Questa fonte è considerata affidabile su Wikipedia?</p>
+      <div class="row">
+        <input type="text" id="dom" placeholder="es. dailymail.co.uk" style="flex:1">
+        <button id="dombtn">Controlla</button>
+      </div>
+      <div class="out" id="domout"></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s??"").replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let DATA = null, TAB = 'flag';
+
+const SEV_LABEL = {critical:'critico', serious:'grave', caution:'attenzione',
+                   info:'nota', good:'ok'};
+const GRADE_LABEL = {unreliable:'inaffidabile', weak:'debole', ok:'accettabile',
+                     solid:'solida'};
+
+/* ---------- knowledge base status ---------- */
+async function kbStatus(){
+  try{
+    const r = await fetch('/api/kb'), j = await r.json();
+    const el = $('#kb');
+    if(j.error){ el.innerHTML = `<span class="dot err"></span> KB non caricata`; return; }
+    if(!j.loaded){ el.innerHTML = `<span class="dot"></span> carico KB…`; setTimeout(kbStatus, 1500); return; }
+    el.innerHTML = `<span class="dot ok"></span> ${j.rsp_entries} fonti RSP · ${j.headbomb_rules} regole`;
+  }catch(e){ $('#kb').innerHTML = `<span class="dot err"></span> offline`; }
+}
+
+/* ---------- title autocomplete ---------- */
+let sugTimer;
+$('#title').addEventListener('input', e => {
+  clearTimeout(sugTimer);
+  const q = e.target.value.trim();
+  if(q.length < 3 || q.startsWith('http')) return;
+  sugTimer = setTimeout(async () => {
+    const r = await fetch(`/api/search?q=${encodeURIComponent(q)}&lang=${$('#lang').value}`);
+    const list = await r.json();
+    $('#sugg').innerHTML = list.map(s => `<option value="${esc(s.title)}">`).join('');
+  }, 260);
+});
+$('#title').addEventListener('keydown', e => { if(e.key === 'Enter') run(); });
+document.querySelectorAll('.ex').forEach(b => b.addEventListener('click', () => {
+  $('#lang').value = b.dataset.l; $('#title').value = b.dataset.t; run();
+}));
+
+/* ---------- run analysis ---------- */
+async function run(){
+  const title = $('#title').value.trim();
+  if(!title) return;
+  $('#go').disabled = true;
+  $('#intro').style.display = 'none';
+  $('#results').style.display = 'none';
+  $('#progress').style.display = 'block';
+  setProgress('Recupero la voce…', 0, 0);
+  try{
+    const r = await fetch('/api/analyze', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({title, lang:$('#lang').value,
+        check_links:$('#links').checked, discover_sources:$('#disc').checked,
+        use_llm:$('#usellm').checked})});
+    const {job, error} = await r.json();
+    if(error){ fail(error); return; }
+    poll(job);
+  }catch(e){ fail(e.message); }
+}
+$('#go').addEventListener('click', run);
+
+function setProgress(phase, done, total){
+  $('#ph').textContent = total > 1 ? `${phase} — ${done}/${total}` : phase;
+  $('#fill').style.width = total > 1 ? `${Math.round(done/total*100)}%` : '8%';
+}
+function fail(msg){
+  $('#progress').style.display = 'none';
+  $('#go').disabled = false;
+  $('#intro').style.display = 'block';
+  alert('Analisi fallita: ' + msg);
+}
+
+async function poll(job){
+  try{
+    const r = await fetch(`/api/job/${job}`), j = await r.json();
+    if(j.state === 'error'){ fail(j.error); return; }
+    if(j.state === 'done'){
+      $('#progress').style.display = 'none';
+      $('#go').disabled = false;
+      if(j.result.error === 'not_found'){
+        $('#intro').style.display = 'block';
+        const s = (j.result.suggestions||[]).map(x=>x.title).slice(0,5);
+        alert(`Voce non trovata: "${j.result.title}"` +
+              (s.length ? `\n\nForse cercavi:\n· ${s.join('\n· ')}` : ''));
+        return;
+      }
+      DATA = j.result; render();
+      return;
+    }
+    setProgress(j.phase || 'in corso…', j.done||0, j.total||0);
+    setTimeout(() => poll(job), 700);
+  }catch(e){ fail(e.message); }
+}
+
+/* ---------- render ---------- */
+function render(){
+  const d = DATA, s = d.stats;
+  $('#results').style.display = 'block';
+  $('#head').innerHTML = `<p class="hint">
+    <b><a href="${esc(d.page.url)}" target="_blank" rel="noopener">${esc(d.page.title)}</a></b>
+    · ${d.page.lang}.wikipedia
+    ${d.page.wikidata ? `· <a href="https://www.wikidata.org/wiki/${d.page.wikidata}" target="_blank" rel="noopener">${d.page.wikidata}</a>` : ''}
+    · analisi in ${d.elapsed}s
+    ${d.redirected_from ? `· redirect da "${esc(d.redirected_from)}"` : ''}</p>`;
+
+  const dens = s.refs_per_1k;
+  $('#cards').innerHTML = [
+    card(s.citations, 'citazioni'),
+    card(s.flagged, 'da rivedere', s.flagged ? 'bad' : 'good'),
+    card(s.dead_links, 'link morti', s.dead_links ? 'warn' : 'good'),
+    card(s.avg_score, 'punteggio medio', s.avg_score >= 70 ? 'good' : s.avg_score >= 50 ? 'warn' : 'bad'),
+    card(s.cn_tags + s.unsourced_paragraphs, 'punti da fontare',
+         (s.cn_tags + s.unsourced_paragraphs) > 3 ? 'warn' : ''),
+    card(dens, 'note / 1k caratteri', dens < 1 ? 'bad' : dens < 2 ? 'warn' : 'good'),
+  ].join('');
+
+  const flagged = d.citations.filter(c => c.grade === 'weak' || c.grade === 'unreliable'
+                    || c.flags.some(f => f.severity === 'critical' || f.severity === 'serious'));
+  flagged.sort((a,b) => a.score - b.score);
+
+  $('#tabs').innerHTML = [
+    tab('flag', 'Da controllare', flagged.length),
+    tab('all', 'Tutte le citazioni', d.citations.length),
+    tab('gaps', 'Da fontare', d.gaps.length),
+    tab('sugg', 'Fonti suggerite', d.suggestions.length),
+    tab('struct', 'Struttura', d.sections.length),
+    tab('tools', 'Strumenti', null),
+  ].join('');
+  document.querySelectorAll('#tabs button').forEach(b =>
+    b.addEventListener('click', () => showTab(b.dataset.t)));
+
+  $('#p-flag').innerHTML = flagged.length
+    ? flagged.map(citeCard).join('')
+    : `<div class="empty">Nessuna citazione problematica. 🎉</div>`;
+  $('#p-all').innerHTML = allTable(d.citations);
+  $('#p-gaps').innerHTML = d.gaps.length
+    ? d.gaps.map(gapCard).join('')
+    : `<div class="empty">Nessun punto senza fonte rilevato.</div>`;
+  $('#p-sugg').innerHTML = d.suggestions.length
+    ? `<p class="hint">Fonti accademiche e libri pertinenti alla voce, ordinati per
+       qualità. Non sono ancora citati nella voce.</p>` +
+      d.suggestions.map(candRow).join('')
+    : `<div class="empty">Nessuna fonte trovata (o ricerca disattivata).</div>`;
+  $('#p-struct').innerHTML = structure(d);
+  bindCopy();
+  showTab(TAB);
+}
+
+const card = (n, l, cls='') => `<div class="card ${cls}"><div class="n">${n}</div><div class="l">${l}</div></div>`;
+const tab = (id, label, n) => `<button data-t="${id}" class="${TAB===id?'on':''}">${label}${
+  n===null?'':`<span class="cnt">${n}</span>`}</button>`;
+
+function showTab(t){
+  TAB = t;
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t===t));
+  ['flag','all','gaps','sugg','struct','tools'].forEach(x =>
+    $(`#p-${x}`).classList.toggle('on', x===t));
+}
+
+function citeCard(c){
+  const link = c.urls && c.urls[0];
+  const flags = c.flags.filter(f => f.severity !== 'good' || c.flags.length < 3);
+  return `<div class="cite g-${c.grade}">
+    <div class="cite-h">
+      <span class="idx">[${c.index}]</span>
+      <span class="title">${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(c.display)}</a>` : esc(c.display)}</span>
+      <span class="grade">${GRADE_LABEL[c.grade]} · ${c.score}</span>
+    </div>
+    <div class="meta">
+      <span class="k">${esc(c.kind)}</span>
+      ${c.domain ? `<span>${esc(c.domain)}</span>` : ''}
+      ${c.doi ? `<span>doi:${esc(c.doi)}</span>` : ''}
+      <span>§ ${esc(c.section)}</span>
+      ${c.reused > 1 ? `<span>usata ${c.reused}×</span>` : ''}
+    </div>
+    <div class="flags">${flags.map(f => `
+      <div class="flag ${f.severity}">
+        <b>${esc(f.title)}</b>
+        ${f.detail ? `<p>${esc(f.detail)}</p>` : ''}
+        ${f.fix ? `<div class="fix">${esc(f.fix)}</div>` : ''}
+        ${f.url ? `<div style="margin-top:4px"><a href="${esc(f.url)}" target="_blank" rel="noopener" style="font-size:12px">dettagli ↗</a></div>` : ''}
+      </div>`).join('')}
+    </div>
+    ${c.archive_snippet ? snippet('Aggiungi l\'archivio alla citazione', c.archive_snippet) : ''}
+    ${c.upgrade_citation ? snippet('Sostituisci con la versione peer-reviewed', c.upgrade_citation) : ''}
+  </div>`;
+}
+
+const snippet = (label, code) => `<div style="margin-left:39px">
+  <div style="font-size:11.5px;color:var(--muted);margin-top:9px">${esc(label)}</div>
+  <div class="snip"><code>${esc(code)}</code>
+  <button class="copy" data-c="${esc(code)}">copia</button></div></div>`;
+
+function allTable(cs){
+  return `<table><thead><tr>
+    <th data-k="index">#</th><th data-k="score">Voto</th><th data-k="kind">Tipo</th>
+    <th data-k="domain">Dominio</th><th data-k="display">Titolo</th>
+    <th data-k="section">Sezione</th><th>Problemi</th></tr></thead><tbody>${
+    cs.map(c => `<tr>
+      <td class="sc">${c.index}</td>
+      <td class="sc s-${c.grade}">${c.score}</td>
+      <td>${esc(c.kind)}</td>
+      <td>${esc(c.domain||'—')}</td>
+      <td>${esc((c.display||'').slice(0,70))}</td>
+      <td>${esc(c.section)}</td>
+      <td>${c.flags.filter(f=>f.severity!=='good'&&f.severity!=='info')
+            .map(f=>`<span class="sig ${f.severity==='caution'?'':'warn'}">${esc(f.title)}</span>`).join('')||'—'}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function gapCard(g, i){
+  const isTag = g.type === 'tagged';
+  return `<div class="gap">
+    <span class="tag ${isTag?'':'para'}">${isTag ? '{{'+esc(g.template)+'}}' : 'paragrafo senza fonte'}</span>
+    <span style="font-size:12px;color:var(--muted);margin-left:8px">§ ${esc(g.section)}</span>
+    ${g.reason ? `<span style="font-size:12px;color:var(--muted)"> · ${esc(g.reason)}</span>` : ''}
+    <div class="claim">${esc(g.claim)}</div>
+    ${g.candidates && g.candidates.length
+      ? `<div class="cand"><div style="font-size:12px;color:var(--muted);margin-bottom:4px">
+          Fonti candidate</div>${g.candidates.map(candRow).join('')}</div>`
+      : `<button class="ghost find" data-i="${i}">Cerca fonti per questa affermazione</button>`}
+  </div>`;
+}
+
+function candRow(c){
+  let sigs = (c.signals||[]).map(s =>
+    `<span class="sig ${s.startsWith('⚠')?'warn':''}">${esc(s)}</span>`).join('');
+  if(c.relevance){
+    const ok = c.relevance === 'supports';
+    sigs = `<span class="sig ${ok?'':'warn'}" style="${ok?'':'background:var(--caution-bg);color:var(--caution)'}"
+      title="${esc(c.relevance_why||'')}">${ok?'sostiene l\'affermazione':'solo correlata'}</span>` + sigs;
+  }
+  const where = [c.venue, c.year].filter(Boolean).map(esc).join(' · ');
+  const link = c.doi ? `https://doi.org/${c.doi}` : c.landing;
+  return `<div class="cand-row">
+    <div class="cand-t">${link ? `<a href="${esc(link)}" target="_blank" rel="noopener">${esc(c.title)}</a>` : esc(c.title)}</div>
+    <div class="cand-m">${esc((c.authors||[]).slice(0,3).join('; '))}${where?' — '+where:''}</div>
+    <div style="margin-top:4px">${sigs}</div>
+    ${c.citation ? `<div class="snip"><code>${esc(c.citation)}</code>
+      <button class="copy" data-c="${esc(c.citation)}">copia</button></div>` : ''}
+  </div>`;
+}
+
+function structure(d){
+  const rows = d.sections.map(s => {
+    const dens = s.chars > 300 ? (s.refs/(s.chars/1000)) : null;
+    const warn = dens !== null && dens < 1;
+    return `<li>${'&nbsp;'.repeat((s.level-1)*3)}<b>${esc(s.title)}</b>
+      — ${s.refs} note / ${s.chars} caratteri
+      ${warn ? ` <mark>poco fontata</mark>` : ''}</li>`;
+  }).join('');
+  const bib = d.bibliography.length
+    ? `<div class="tool"><h3>Bibliografia (${d.bibliography.length})</h3>
+       <ul class="sect-list">${d.bibliography.map(b=>`<li><code>${esc(b.raw.slice(0,180))}</code></li>`).join('')}</ul></div>`
+    : '';
+  return `<div class="tool"><h3>Densità delle fonti per sezione</h3>
+    <ul class="sect-list">${rows}</ul></div>${bib}`;
+}
+
+/* ---------- interactions ---------- */
+function bindCopy(){
+  document.querySelectorAll('.copy').forEach(b => b.addEventListener('click', async () => {
+    try{ await navigator.clipboard.writeText(b.dataset.c); }
+    catch(e){ const t=document.createElement('textarea'); t.value=b.dataset.c;
+      document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove(); }
+    b.textContent = 'copiato'; b.classList.add('done');
+    setTimeout(()=>{ b.textContent='copia'; b.classList.remove('done'); }, 1400);
+  }));
+  document.querySelectorAll('.find').forEach(b => b.addEventListener('click', async () => {
+    const g = DATA.gaps[b.dataset.i];
+    b.disabled = true; b.textContent = 'cerco…';
+    const r = await fetch('/api/discover', {method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({claim:g.claim, title:DATA.page.title, lang:DATA.page.lang})});
+    g.candidates = await r.json();
+    $('#p-gaps').innerHTML = DATA.gaps.map(gapCard).join('');
+    bindCopy();
+  }));
+}
+
+$('#citebtn').addEventListener('click', async () => {
+  const url = $('#citeurl').value.trim(); if(!url) return;
+  $('#citeout').innerHTML = '<span class="pulse">estraggo i metadati…</span>';
+  const r = await fetch('/api/cite', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({url, lang:$('#lang').value})});
+  const j = await r.json();
+  $('#citeout').innerHTML = j.error
+    ? `<div class="flag serious"><b>Metadati non estraibili</b><p>${esc(j.detail||j.error)}</p></div>`
+    : `<div class="cand-m">${esc(j.itemType)} — ${esc(j.title||'')}</div>
+       <div class="snip"><code>${esc(j.citation)}</code>
+       <button class="copy" data-c="${esc(j.citation)}">copia</button></div>`;
+  bindCopy();
+});
+
+$('#dombtn').addEventListener('click', async () => {
+  const d = $('#dom').value.trim(); if(!d) return;
+  $('#domout').innerHTML = '<span class="pulse">controllo…</span>';
+  const r = await fetch(`/api/domain?d=${encodeURIComponent(d)}`);
+  const j = await r.json();
+  $('#domout').innerHTML = j.verdicts.length
+    ? j.verdicts.map(v => `<div class="flag ${v.severity}">
+        <b>${esc(v.label)}${v.name && v.source==='rsp' ? ' — '+esc(v.name) : ''}
+        <span style="font-weight:400;color:var(--muted)">(${SEV_LABEL[v.severity]})</span></b>
+        ${v.detail?`<p>${esc(v.detail)}</p>`:''}
+        ${v.url?`<div style="margin-top:4px"><a href="${esc(v.url)}" target="_blank" rel="noopener" style="font-size:12px">dettagli ↗</a></div>`:''}
+      </div>`).join('')
+    : `<div class="flag info"><b>Non in elenco</b><p>Questo dominio non compare né in
+       WP:RSP né in CITEWATCH. Non significa che sia affidabile: valutalo secondo
+       WP:RS (controllo editoriale, reputazione, indipendenza dal soggetto).</p></div>`;
+});
+$('#dom').addEventListener('keydown', e => { if(e.key==='Enter') $('#dombtn').click(); });
+$('#citeurl').addEventListener('keydown', e => { if(e.key==='Enter') $('#citebtn').click(); });
+
+/* ---------- LLM settings ---------- */
+async function llmLoad(){
+  const j = await (await fetch('/api/llm')).json();
+  $('#llmurl').value = j.llm_base_url || '';
+  $('#llmmodel').value = j.llm_model || '';
+  $('#llmon').checked = !!j.llm_enabled;
+  $('#llmkey').placeholder = j.llm_configured
+    ? `${j.llm_api_key} (lascia vuoto per non modificare)`
+    : 'sk-or-v1-…';
+  $('#llmtoggle').style.display = j.available ? 'flex' : 'none';
+  const b = $('#llmbadge');
+  b.textContent = j.available ? 'attivo' : (j.llm_configured ? 'disattivato' : 'non configurato');
+  b.style.background = j.available ? 'var(--good-bg)' : 'var(--info-bg)';
+  b.style.color = j.available ? 'var(--good)' : 'var(--info)';
+}
+$('#llmsave').addEventListener('click', async () => {
+  $('#llmout').innerHTML = '<span class="pulse">salvo…</span>';
+  await fetch('/api/llm', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({llm_base_url:$('#llmurl').value.trim(),
+      llm_api_key:$('#llmkey').value.trim(), llm_model:$('#llmmodel').value.trim(),
+      llm_enabled:$('#llmon').checked})});
+  $('#llmkey').value = '';
+  await llmLoad();
+  $('#llmout').innerHTML = '<div class="flag good"><b>Impostazioni salvate</b></div>';
+});
+$('#llmtest').addEventListener('click', async () => {
+  $('#llmout').innerHTML = '<span class="pulse">provo…</span>';
+  const j = await (await fetch('/api/llm/test', {method:'POST'})).json();
+  $('#llmout').innerHTML = j.ok
+    ? `<div class="flag good"><b>Connessione riuscita</b><p>${esc(j.model)} ha risposto: "${esc(j.reply)}"</p></div>`
+    : `<div class="flag serious"><b>Connessione fallita</b><p>${esc(j.error)}</p></div>`;
+});
+$('#llmload').addEventListener('click', async () => {
+  $('#llmout').innerHTML = '<span class="pulse">carico i modelli…</span>';
+  const ms = await (await fetch('/api/llm/models')).json();
+  $('#models').innerHTML = ms.map(m => `<option value="${esc(m.id)}">${esc(m.name)}</option>`).join('');
+  $('#llmout').innerHTML = ms.length
+    ? `<div class="flag info"><b>${ms.length} modelli disponibili</b><p>Scrivi nel campo per filtrare.</p></div>`
+    : `<div class="flag caution"><b>Nessun modello</b><p>Salva prima endpoint e API key.</p></div>`;
+});
+
+$('#toolbtn').addEventListener('click', () => {
+  const open = $('#p-tools').classList.contains('on');
+  if(open){
+    $('#p-tools').classList.remove('on');
+    if(DATA){ showTab(TAB === 'tools' ? 'flag' : TAB); } else { $('#intro').style.display = 'block'; }
+  }else{
+    if(DATA){ showTab('tools'); }
+    else { $('#intro').style.display = 'none'; $('#p-tools').classList.add('on'); }
+  }
+});
+
+kbStatus();
+llmLoad();
+$('#p-tools').classList.remove('on');
+</script>
+</body>
+</html>

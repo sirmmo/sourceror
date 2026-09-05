@@ -1,0 +1,21 @@
+services:
+  sourceror:
+    build: .
+    image: sourceror:latest
+    container_name: sourceror
+    ports:
+      - "${PORT:-5010}:5000"
+    environment:
+      SOURCEROR_LANG: "${SOURCEROR_LANG:-it}"
+      SOURCEROR_CONTACT: "${SOURCEROR_CONTACT:-}"
+      FLASK_DEBUG: "${FLASK_DEBUG:-0}"
+    volumes:
+      # Live-reload the source, and keep the reliability cache across restarts.
+      - ./sourceror:/app/sourceror:ro
+      - ./templates:/app/templates:ro
+      - ./app.py:/app/app.py:ro
+      - sourceror-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  sourceror-data:
