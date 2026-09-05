@@ -63,7 +63,7 @@ già compilato e pronto da incollare (`{{cita pubblicazione}}` su it.wiki,
 Immagine già pubblicata, senza compilare nulla:
 
 ```bash
-docker run -d --name sourceror -p 5010:5000 \
+docker run -d --name sourceror -p 127.0.0.1:5010:5000 \
   -v sourceror-data:/app/data \
   ghcr.io/sirmmo/sourceror:latest
 ```
@@ -76,6 +76,13 @@ docker compose up -d --build
 ```
 
 Cambiare porta: `PORT=8080 docker compose up -d`.
+
+> ⚠️ **Non esporre Sourceror in rete senza autenticazione davanti.** Non ne ha,
+> e `POST /api/llm` permette a chiunque di cambiare `llm_base_url`: una
+> successiva `POST /api/llm/test` invierebbe l'header
+> `Authorization: Bearer <chiave>` all'endpoint scelto dall'attaccante. Per
+> questo compose ascolta solo su `127.0.0.1`; usa `BIND=0.0.0.0` solo dietro un
+> reverse proxy autenticato.
 Lingua predefinita: `SOURCEROR_LANG=en docker compose up -d`.
 
 Al primo avvio scarica le liste di affidabilità da Wikipedia (qualche secondo) e

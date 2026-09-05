@@ -4,7 +4,11 @@ services:
     image: sourceror:latest
     container_name: sourceror
     ports:
-      - "${PORT:-5010}:5000"
+      # Loopback by default. Sourceror has no authentication, and /api/llm lets
+      # a caller repoint the LLM endpoint — so an exposed port would let anyone
+      # redirect your API key to a server of their choosing. Put it behind a
+      # reverse proxy with auth before setting BIND=0.0.0.0.
+      - "${BIND:-127.0.0.1}:${PORT:-5010}:5000"
     environment:
       SOURCEROR_LANG: "${SOURCEROR_LANG:-it}"
       SOURCEROR_CONTACT: "${SOURCEROR_CONTACT:-}"

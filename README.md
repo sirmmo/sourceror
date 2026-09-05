@@ -20,7 +20,7 @@ bibliographic checks come from Crossref and OpenAlex.
 Pull the published image — nothing to build:
 
 ```bash
-docker run -d --name sourceror -p 5010:5000 \
+docker run -d --name sourceror -p 127.0.0.1:5010:5000 \
   -v sourceror-data:/app/data \
   ghcr.io/sirmmo/sourceror:latest
 ```
@@ -41,9 +41,18 @@ to keep the cache across restarts.
 
 | Variable | Default | |
 |---|---|---|
+| `BIND` | `127.0.0.1` | Interface to bind (compose only) — see the warning below |
 | `PORT` | `5010` | Host port (compose only) |
 | `SOURCEROR_LANG` | `it` | Default wiki language |
 | `FLASK_DEBUG` | `0` | Set `1` for the reloader |
+
+> ⚠️ **Do not expose Sourceror to a network without putting authentication in
+> front of it.** It has none of its own, and `POST /api/llm` lets any caller
+> change `llm_base_url`; a following `POST /api/llm/test` would then send your
+> `Authorization: Bearer <api key>` header to whatever endpoint they chose.
+> Compose therefore binds `127.0.0.1` by default. The `docker run` example
+> above publishes on all interfaces — use `-p 127.0.0.1:5010:5000` unless the
+> host is firewalled.
 
 ---
 
