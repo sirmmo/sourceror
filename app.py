@@ -6,6 +6,7 @@ consensus, and looks for sources to fill the gaps.
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 import uuid
@@ -16,12 +17,16 @@ from sourceror import analyze as az
 from sourceror import apis
 from sourceror import config as cfg
 from sourceror import llm
+from sourceror import page
 from sourceror.reliability import Reliability
 
 DEFAULT_LANG = os.environ.get("SOURCEROR_LANG", "it")
 LANGS = ["it", "en", "fr", "de", "es", "pt", "nl", "ca", "la"]
+WIKI_LANG_RE = re.compile(r"^[a-z]{2,12}(-[a-z]{2,12})*$")   # en, simple, zh-min-nan
 
 app = Flask(__name__)
+# The extension posts a whole article; nothing legitimate is anywhere near this.
+app.config["MAX_CONTENT_LENGTH"] = 4 * 1024 * 1024
 
 rel = Reliability()
 _kb_lock = threading.Lock()
@@ -79,7 +84,10 @@ def start_analysis():
         return jsonify({"error": "missing_title"}), 400
     title = _title_from_url(title) or title
     lang = body.get("lang") or DEFAULT_LANG
-    if lang not in LANGS:
+    # Any language edition, not only the ones listed in the UI: the extension
+    # can be on any of them. Letters and hyphens only, so the API host built
+    # from it is always a wikipedia.org subdomain.
+    if not WIKI_LANG_RE.match(str(lang)):
         lang = DEFAULT_LANG
 
     job_id = uuid.uuid4().hex[:12]
@@ -90,15 +98,48 @@ def start_analysis():
         _reap_jobs()
         JOBS[job_id] = job
 
-    opts = {"check_links": bool(body.get("check_links", True)),
-            "discover_sources": bool(body.get("discover_sources", True)),
-            "use_llm": bool(body.get("use_llm", True))}
-    threading.Thread(target=_run_job, args=(job_id, title, lang, opts),
+    opts = _opts(body)
+    threading.Thread(target=_run_job, args=(job_id, az.analyze, title, lang, opts),
                      daemon=True).start()
     return jsonify({"job": job_id})
 
 
-def _run_job(job_id: str, title: str, lang: str, opts: dict) -> None:
+@app.route("/api/page", methods=["POST"])
+def start_page_analysis():
+    """Any web article, as extracted by the browser extension.
+
+    Only a JSON body is accepted. That is what keeps an arbitrary website from
+    driving this endpoint from a visitor's browser: a cross-origin JSON POST
+    needs a CORS preflight, and Sourceror never answers one."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "expected_json"}), 400
+    if not body.get("paragraphs") and not body.get("links"):
+        return jsonify({"error": "empty_page"}), 400
+    lang = (body.get("lang") or DEFAULT_LANG).split("-")[0].lower()
+    if lang not in LANGS:
+        lang = DEFAULT_LANG
+
+    job_id = uuid.uuid4().hex[:12]
+    job = {"id": job_id, "state": "queued", "title": body.get("title") or body.get("url"),
+           "lang": lang, "phase": "starting", "done": 0, "total": 0,
+           "started": time.time(), "result": None, "error": None}
+    with JOBS_LOCK:
+        _reap_jobs()
+        JOBS[job_id] = job
+    threading.Thread(target=_run_job,
+                     args=(job_id, page.analyze_page, body, lang, _opts(body)),
+                     daemon=True).start()
+    return jsonify({"job": job_id})
+
+
+def _opts(body: dict) -> dict:
+    return {"check_links": bool(body.get("check_links", True)),
+            "discover_sources": bool(body.get("discover_sources", True)),
+            "use_llm": bool(body.get("use_llm", True))}
+
+
+def _run_job(job_id: str, fn, subject, lang: str, opts: dict) -> None:
     def progress(done, total, phase):
         with JOBS_LOCK:
             j = JOBS.get(job_id)
@@ -107,7 +148,7 @@ def _run_job(job_id: str, title: str, lang: str, opts: dict) -> None:
 
     try:
         ensure_kb()
-        result = az.analyze(title, lang, rel=rel, progress=progress, **opts)
+        result = fn(subject, lang, rel=rel, progress=progress, **opts)
         with JOBS_LOCK:
             j = JOBS.get(job_id)
             if j:

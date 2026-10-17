@@ -163,6 +163,10 @@ class Auditor:
 
     # ------------------------------------------------------------ checks
     def _check_structure(self, rep, ref, params) -> None:
+        if ref.kind in ("link", "doi"):
+            # A hyperlink or a DOI in a web article: there is no citation
+            # template to be incomplete, only the source behind it to judge.
+            return
         if ref.kind == "empty":
             rep.add(Flag("EMPTY_REF", "serious", "Empty reference",
                          "The <ref></ref> tag contains nothing at all, so the "
@@ -378,7 +382,8 @@ class Auditor:
             rep.add(Flag("UNVERIFIABLE", "info", "Could not verify automatically",
                          "The site blocked our request (HTTP 403). This says "
                          "nothing about the source's quality — check by hand."))
-        elif h.redirect_to and apis.domain_of(h.redirect_to) != apis.domain_of(url):
+        elif h.redirect_to and _site(h.redirect_to) != _site(url) \
+                and _site(url) not in RESOLVERS:
             rep.add(Flag("UNVERIFIABLE", "caution", "Redirects to another domain",
                          f"The URL now lands on {apis.domain_of(h.redirect_to)}, "
                          "which may mean the domain changed hands.",
@@ -410,6 +415,17 @@ class Auditor:
 
 
 # ------------------------------------------------------------------ helpers
+
+# Identifier resolvers forward to the publisher by design; that is not a
+# change of ownership.
+RESOLVERS = {"doi.org", "dx.doi.org", "hdl.handle.net", "n2t.net",
+             "identifiers.org", "purl.org"}
+
+
+def _site(url: str) -> str:
+    d = apis.domain_of(url)
+    return d[4:] if d.startswith("www.") else d
+
 
 def _first(params: dict, keys) -> str | None:
     for k in keys:

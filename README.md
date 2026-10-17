@@ -1,7 +1,9 @@
 # Sourceror
 
-**A source-checking helper for Wikipedia editors.** It audits the citations
-already in an article and looks for sources to fill the gaps.
+**A source-checking helper for Wikipedia editors, and for anyone reading the
+news.** It audits the citations already in an article and looks for sources to
+fill the gaps. A [Chrome extension](#browser-extension) does the same for any
+web article: who is behind each link, and which claims rely on nothing.
 
 [![CI](https://github.com/sirmmo/sourceror/actions/workflows/ci.yml/badge.svg)](https://github.com/sirmmo/sourceror/actions/workflows/ci.yml)
 [![Publish image](https://github.com/sirmmo/sourceror/actions/workflows/publish.yml/badge.svg)](https://github.com/sirmmo/sourceror/actions/workflows/publish.yml)
@@ -112,6 +114,50 @@ filled citation template ready to paste (`{{cite journal}}` on en.wiki,
 
 ---
 
+## Browser extension
+
+`extension/` is a Chrome side panel that checks **any article**: news, blog
+posts, reports, and Wikipedia entries in every language. It is also published
+on its own as [sirmmo/sourceror-extension](https://github.com/sirmmo/sourceror-extension);
+`extension/` here is the source of truth, and the mirror is updated with
+`git subtree push --prefix=extension https://github.com/sirmmo/sourceror-extension.git main`.
+
+1. Start the server (see *Quick start*). The extension talks only to
+   `http://127.0.0.1:5010`; the address can be changed in its settings.
+2. Open `chrome://extensions`, turn on **Developer mode**, click **Load
+   unpacked** and pick the `extension/` folder.
+3. On any article, click the Sourceror icon (or press **Alt+Shift+S**), then
+   **Check this page's sources**.
+
+On a web article it:
+
+- extracts the article body as you see it, with Mozilla's
+  [Readability](https://github.com/mozilla/readability). Paywalls, cookie walls
+  and bot blocks that would stop a server-side fetch do not matter;
+- judges every outbound link and every DOI in the text with the same checks
+  used for Wikipedia references (WP:RSP, CITEWATCH, retractions, dead links).
+  Share buttons, navigation and tracking parameters are dropped first, and
+  links back to the publisher's own site are reported separately;
+- lists the article's **checkable claims** (figures, study results, records,
+  causal statements) and sorts them into *linked*, *linked to a weak source*,
+  *attributed in the text but not linked*, and *no source*. Claims with no
+  source get candidate sources from OpenAlex and Crossref. With an LLM
+  configured the model reads the claims; without one a simple, transparent
+  heuristic does, and misses more;
+- marks the page itself: a coloured dot after each judged link and a
+  highlight on each problem claim. Click a mark to jump to its entry in the
+  panel, or click an entry to scroll the page to it.
+
+On Wikipedia it runs the normal article audit and colours the reference list
+and the `[1]` markers in the text.
+
+The publisher of the page gets its own WP:RSP verdict when it has one. Most
+outlets have none, and the panel says so instead of implying they are reliable.
+
+**Permissions.** The extension asks to read all sites (`<all_urls>`) because it
+has to read whichever article you open. It reads a page only when you click
+the button, and sends what it extracts only to your Sourceror server.
+
 ## Optional LLM
 
 **Sourceror is fully functional without one.** When configured, an LLM is used
@@ -152,6 +198,7 @@ the no-LLM path on failure.
 | Endpoint | |
 |---|---|
 | `POST /api/analyze` | `{title, lang, check_links, discover_sources, use_llm}` → `{job}` |
+| `POST /api/page` | `{url, title, lang, paragraphs, links, …}` from the extension → `{job}` (JSON only) |
 | `GET /api/job/<id>` | state, progress and result |
 | `GET /api/search?q=&lang=` | title autocomplete |
 | `POST /api/cite` | `{url, lang}` → filled template via Citoid |
@@ -192,13 +239,26 @@ also accepts a full Wikipedia URL.
 
 ```bash
 pip install -r requirements-dev.txt
-python -m pytest tests/test_offline.py -q   # 34 tests, no network
+python -m pytest tests -q                   # offline suite, no network
 python tests/smoke.py                       # live: hits the real APIs
 ```
 
-`tests/test_offline.py` runs against fixtures and never touches the network, so
-CI is fast and deterministic. `tests/smoke.py` exercises every layer against the
+The `test_*.py` files run against fixtures and never touch the network, so CI
+is fast and deterministic. `tests/smoke.py` exercises every layer against the
 live services and runs weekly as a canary.
+
+The extension has an end-to-end test that loads it into Chromium, analyses
+the fixture article (`tests/fixtures/article.html`) and checks the panel and
+the page marks. It needs a running server:
+
+```bash
+docker run --rm --network host -v "$PWD":/src -w /src \
+  mcr.microsoft.com/playwright:v1.60.0 \
+  sh -c "npm i --no-save --no-package-lock --silent playwright@1.60.0 && node tests/extension_e2e.mjs"
+```
+
+Pass URLs to test other pages; `USE_LLM=1` turns the LLM on, `CHECK_LINKS=0`
+skips link checks, and `UI_LANG=it-IT` shows the Italian interface.
 
 ### Why there is a canary
 
@@ -223,9 +283,11 @@ sourceror/
   discover.py           source search, relevance gate, ranking
   cite.py               citation templates in the target wiki's dialect
   analyze.py            orchestration
+  page.py               any web article: links, claims, publisher
   llm.py, config.py     optional LLM layer
 templates/index.html    UI (vanilla JS, no build step)
-tests/                  offline suite + live smoke test
+extension/              Chrome side panel (Manifest V3, no build step)
+tests/                  offline suite, live smoke test, extension e2e
 ```
 
 ---

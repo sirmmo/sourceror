@@ -31,7 +31,7 @@ jobs:
 
       - name: Offline test suite
         # No network: the suite must never depend on the live wikis.
-        run: python -m pytest tests/test_offline.py -q
+        run: python -m pytest tests -q
 
       - name: Byte-compile every module
         run: python -m compileall -q app.py sourceror
@@ -66,6 +66,15 @@ jobs:
           curl -fsS http://127.0.0.1:5000/ >/dev/null
           curl -fsS http://127.0.0.1:5000/api/llm | grep -q llm_base_url
           echo "smoke probes passed"
+
+      - name: Extension end-to-end (fixture article)
+        # Loads extension/ into Chromium and analyses a local page. Link
+        # checks are off, so no third-party site can make this flaky.
+        run: |
+          docker run --rm --network host -e CHECK_LINKS=0 -e SERVER=http://127.0.0.1:5000 \
+            -v "$PWD":/src -w /src mcr.microsoft.com/playwright:v1.60.0 \
+            sh -c "npm i --no-save --no-package-lock --silent playwright@1.60.0 && \
+                   node tests/extension_e2e.mjs http://127.0.0.1:8765/economy/2026/10/remote-work"
 
       - name: Container logs on failure
         if: failure()

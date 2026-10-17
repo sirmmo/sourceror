@@ -1,0 +1,29 @@
+/* Injected into the analysed page. Every selector is srcr-prefixed so the
+   page's own styles are left alone. */
+.srcr-dot {
+  display: inline-block;
+  width: .62em; height: .62em;
+  margin: 0 .18em 0 .22em;
+  border-radius: 50%;
+  vertical-align: .12em;
+  cursor: pointer;
+  box-shadow: 0 0 0 1.5px #fff, 0 0 0 2.5px rgba(0,0,0,.18);
+  transition: transform .15s ease;
+}
+.srcr-dot:hover, .srcr-dot:focus-visible { transform: scale(1.45); outline: none; }
+.srcr-dot.srcr-solid      { background: #1a7f4b; }
+.srcr-dot.srcr-ok         { background: #8aa324; }
+.srcr-dot.srcr-weak       { background: #d98a0b; }
+.srcr-dot.srcr-unreliable { background: #c62f2f; }
+.srcr-dot.srcr-none       { background: #8a8f98; }
+.srcr-dot.srcr-flash, sup.srcr-ref.srcr-flash { animation: srcr-pulse .55s ease 4; }
+@keyframes srcr-pulse { 50% { transform: scale(1.9); } }
+
+sup.srcr-ref a { border-radius: 3px; padding: 0 1px; }
+sup.srcr-ref.srcr-weak a       { background: #fde7c0; color: #7a4a00 !important; }
+sup.srcr-ref.srcr-unreliable a { background: #f8d0d0; color: #8a1414 !important; }
+
+::highlight(srcr-unsourced)  { background-color: rgba(230, 70, 70, .22); text-decoration: underline wavy rgba(198, 47, 47, .75); }
+::highlight(srcr-weak)       { background-color: rgba(240, 160, 30, .25); text-decoration: underline wavy rgba(200, 120, 0, .8); }
+::highlight(srcr-attributed) { text-decoration: underline dotted rgba(70, 90, 160, .7); }
+::highlight(srcr-focus)      { background-color: rgba(255, 214, 0, .7); color: #000; }

@@ -156,13 +156,14 @@ def test() -> dict:
 
 # ---------------------------------------------------------------- features
 
-QUERY_SYS = """You turn a sentence from a Wikipedia article into search queries \
+QUERY_SYS = """You turn a sentence from an article (usually Wikipedia, sometimes news or a \
+web page) into search queries \
 for academic and news databases (OpenAlex, Crossref).
 
 Rules:
 - Produce queries a librarian would use: the key entities, events, dates and \
 technical terms, WITHOUT boolean operators, quotes or field prefixes.
-- Prefer the scholarly or historical register over Wikipedia's phrasing.
+- Prefer the scholarly or historical register over the article's phrasing.
 - If the claim names a person, place, work or date, keep it.
 - Give one query in the article's own language and one in English.
 Return JSON: {"queries": ["...", "..."], "topic": "<3-6 word topic>"}"""
@@ -173,7 +174,7 @@ def refine_queries(claim: str, article_title: str, lang: str) -> list[str]:
     out = chat_json([
         {"role": "system", "content": QUERY_SYS},
         {"role": "user", "content":
-            f"Wikipedia article: {article_title} ({lang}.wikipedia)\n"
+            f"Article: {article_title} (language: {lang})\n"
             f"Claim needing a source:\n{claim[:900]}"}],
         max_tokens=1500)
     qs = [q.strip() for q in (out.get("queries") or []) if isinstance(q, str) and q.strip()]
@@ -181,7 +182,7 @@ def refine_queries(claim: str, article_title: str, lang: str) -> list[str]:
 
 
 RELEVANCE_SYS = """You judge whether a source could support a specific factual \
-claim from a Wikipedia article. You see only bibliographic metadata, so judge \
+claim from an article. You see only bibliographic metadata, so judge \
 plausibility, not proof.
 
 For each candidate return:

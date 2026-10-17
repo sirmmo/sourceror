@@ -273,13 +273,18 @@ def for_claim(claim: str, title: str, rel: Reliability, lang: str = "it",
             pass
 
     merged: dict[str, dict] = {}
+    titles: set[str] = set()
     for q in queries[:3]:
         try:
             for c in academic(q, rel, lang, limit + 2):
                 key = (c.get("doi") or c.get("title", "")).lower()
-                if key and key not in merged:
+                # Figures, tables and chapters of one report often carry their
+                # own DOIs under the same title: one entry is enough.
+                title = re.sub(r"\W+", " ", (c.get("title") or "").lower()).strip()
+                if key and key not in merged and title not in titles:
                     c["query"] = q
                     merged[key] = c
+                    titles.add(title)
         except Exception:
             continue
     out = sorted(merged.values(), key=lambda x: -x["rank"])

@@ -88,6 +88,43 @@ Lingua predefinita: `SOURCEROR_LANG=en docker compose up -d`.
 Al primo avvio scarica le liste di affidabilità da Wikipedia (qualche secondo) e
 le tiene in cache 24 ore nel volume `sourceror-data`.
 
+## Estensione per Chrome
+
+`extension/` è un pannello laterale di Chrome che controlla **qualsiasi
+articolo**: notizie, blog, rapporti, e voci di Wikipedia in tutte le lingue.
+È pubblicata anche a sé come
+[sirmmo/sourceror-extension](https://github.com/sirmmo/sourceror-extension);
+la copia di riferimento resta `extension/` in questo repository.
+
+1. Avvia il server (vedi *Avvio*). L'estensione parla solo con
+   `http://127.0.0.1:5010`; l'indirizzo si cambia nelle sue impostazioni.
+2. Apri `chrome://extensions`, attiva la **Modalità sviluppatore**, premi
+   **Carica estensione non pacchettizzata** e scegli la cartella `extension/`.
+3. Su un articolo premi l'icona di Sourceror (o **Alt+Maiusc+S**), poi
+   **Controlla le fonti di questa pagina**.
+
+Su un articolo web:
+
+- estrae il testo come lo vedi tu (con
+  [Readability](https://github.com/mozilla/readability) di Mozilla), quindi
+  paywall, banner dei cookie e blocchi anti-bot non contano;
+- valuta ogni link in uscita e ogni DOI nel testo con gli stessi controlli
+  delle note di Wikipedia (WP:RSP, CITEWATCH, ritrattazioni, link morti),
+  dopo aver scartato pulsanti di condivisione, menu e parametri di tracciamento;
+- elenca le **affermazioni verificabili** (numeri, studi, record, rapporti di
+  causa) e le divide in *collegate*, *collegate a una fonte debole*,
+  *attribuite ma senza link* e *senza fonte*, cercando fonti per queste ultime.
+  Con un LLM configurato le legge il modello; senza, un'euristica semplice;
+- segna la pagina: un pallino colorato dopo ogni link e un'evidenziazione sulle
+  affermazioni problematiche. Un clic su un segno porta alla voce nel pannello,
+  e viceversa.
+
+Su Wikipedia esegue l'analisi normale della voce e colora le note.
+
+L'estensione chiede di leggere tutti i siti (`<all_urls>`) perché deve leggere
+l'articolo che apri, ma lo fa solo quando premi il pulsante, e invia ciò che
+estrae solo al tuo server Sourceror.
+
 ## LLM (opzionale)
 
 **Sourceror funziona senza LLM.** Se configurato, viene usato solo nei due punti
@@ -135,6 +172,7 @@ Ogni chiamata degrada silenziosamente al comportamento senza LLM in caso di erro
 | Endpoint | |
 |---|---|
 | `POST /api/analyze` | `{title, lang, check_links, discover_sources}` → `{job}` |
+| `POST /api/page` | articolo estratto dall'estensione → `{job}` (solo JSON) |
 | `GET /api/job/<id>` | stato, avanzamento e risultato |
 | `GET /api/search?q=&lang=` | autocompletamento dei titoli |
 | `POST /api/cite` | `{url, lang}` → template compilato via Citoid |

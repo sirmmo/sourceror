@@ -6,7 +6,6 @@ import re
 
 import pytest
 
-from fixtures_rsp import HEADBOMB_JS, RSP_WIKITEXT
 from sourceror import audit, cite, config, discover, reliability, wikitext
 
 
@@ -78,26 +77,6 @@ def test_doi_and_isbn_extraction():
 
 
 # ------------------------------------------------------------- reliability
-
-@pytest.fixture
-def kb(tmp_path, monkeypatch):
-    """A knowledge base built entirely from the fixtures — no network.
-
-    `reliability` binds get_text at import time, so it is that name which has
-    to be replaced; patching sourceror.http.get_text would silently let the
-    test hit the live wiki instead.
-    """
-    monkeypatch.setattr(reliability, "get_text", lambda url, **kw: HEADBOMB_JS)
-    r = reliability.Reliability(tmp_path)
-    entries = reliability._parse_rsp_table(RSP_WIKITEXT)
-    by_domain = {}
-    for e in entries:
-        for d in e["domains"]:
-            by_domain.setdefault(d, e)
-    r.rsp = {"entries": entries, "by_domain": by_domain}
-    r.headbomb = reliability.fetch_headbomb()
-    assert len(r.headbomb["rules"]) == 3, "fixture JS was not used"
-    return r
 
 
 def test_rsp_table_parses_all_statuses(kb):
@@ -273,3 +252,22 @@ def test_config_roundtrip_and_key_masking(tmp_path, monkeypatch):
     assert pub["llm_configured"] is True
     assert fake not in pub["llm_api_key"]        # never leaked to the browser
     assert pub["llm_api_key"].startswith("DUMMY-")   # masked, not blank
+
+
+def test_resolver_and_www_redirects_are_not_flagged(kb, monkeypatch):
+    """doi.org always forwards to the publisher, and www/no-www is the same
+    site; neither means the domain changed hands."""
+    from sourceror import apis
+
+    def fake(url, **kw):
+        target = {"https://doi.org/10.1/x": "https://www.nature.com/articles/x",
+                  "https://bbc.com/a": "https://www.bbc.com/a",
+                  "https://old.test/a": "https://casino.test/"}[url]
+        return apis.LinkHealth(url=url, status=200, ok=True, redirect_to=target)
+    monkeypatch.setattr(apis, "check_link", fake)
+    aud = audit.Auditor(kb, "en")
+    for url, flagged in [("https://doi.org/10.1/x", False), ("https://bbc.com/a", False),
+                         ("https://old.test/a", True)]:
+        rep = _report(urls=[url])
+        aud._check_link(rep, url, {})
+        assert any(f.code == "UNVERIFIABLE" for f in rep.flags) is flagged, url

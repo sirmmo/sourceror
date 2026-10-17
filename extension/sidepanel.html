@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sourceror</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <header class="bar">
+    <div class="brand"><img src="icons/32.png" alt="" width="20" height="20"> Sourceror</div>
+    <span id="server" class="server" title=""></span>
+    <button id="toggle-settings" class="icon" aria-expanded="false" data-i18n-title="settings">⚙</button>
+  </header>
+
+  <section id="settings" class="settings" hidden>
+    <label class="field"><span data-i18n="server_url"></span>
+      <input id="opt-server" type="url" spellcheck="false" placeholder="http://127.0.0.1:5010">
+    </label>
+    <label class="check"><input id="opt-links" type="checkbox"> <span data-i18n="opt_links"></span></label>
+    <label class="check"><input id="opt-llm" type="checkbox"> <span data-i18n="opt_llm"></span></label>
+    <label class="check"><input id="opt-discover" type="checkbox"> <span data-i18n="opt_discover"></span></label>
+    <p class="hint" data-i18n="server_hint"></p>
+  </section>
+
+  <section class="target">
+    <div id="target-title" class="target-title"></div>
+    <div id="target-url" class="target-url"></div>
+    <div class="actions">
+      <button id="analyze" class="primary" data-i18n="analyze"></button>
+      <button id="clear" class="ghost" data-i18n="clear_marks" hidden></button>
+    </div>
+  </section>
+
+  <section id="progress" class="progress" hidden>
+    <div class="phase"><span id="phase"></span><span id="count"></span></div>
+    <div class="track"><div id="bar" class="fill"></div></div>
+  </section>
+
+  <section id="message" class="message" hidden></section>
+
+  <main id="report" hidden></main>
+
+  <footer class="legend" id="legend" hidden>
+    <span><i class="d solid"></i><span data-i18n="g_solid"></span></span>
+    <span><i class="d ok"></i><span data-i18n="g_ok"></span></span>
+    <span><i class="d weak"></i><span data-i18n="g_weak"></span></span>
+    <span><i class="d unreliable"></i><span data-i18n="g_unreliable"></span></span>
+    <p data-i18n="limits"></p>
+  </footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
